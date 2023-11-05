@@ -1,0 +1,115 @@
+---
+title: "Nobel_prize Extra Credit"
+author: "Michael Robinson"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+library(jsonlite)
+library(DT)
+library(tidyverse)
+
+laureate_url <- "http://api.nobelprize.org/v1/laureate.json"
+prize_url <- "http://api.nobelprize.org/v1/prize.json"
+
+# Gather laureate data
+laureate_raw_data <- fromJSON(laureate_url) %>% as.data.frame()
+
+# Gather  prize data
+raw_prize_data <- fromJSON(prize_url) %>% as.data.frame()
+
+# create a DT table with ellipsis for long text entries
+create_ellipsis_table <- function(data) {
+  datatable(
+    head(data, 50),
+    plugins = "ellipsis",
+    options = list(
+      scrollX = TRUE,
+      columnDefs = list(list(
+        targets = "_all",
+        render = JS("$.fn.dataTable.render.ellipsis(30, false)")
+      ))
+    )
+  )
+}
+
+prize_data <- raw_prize_data %>%
+  mutate_if(is.list, map, as_data_frame) %>%
+  unnest()
+
+colnames(prize_data) <- c("year", "category", "id", "firstname", "surname", "motivation", "share", "overall_motivation")
+
+create_ellipsis_table(prize_data)
+
+laureate_data <- laureate_raw_data %>%
+  mutate_if(is.list, map, as_data_frame) %>%
+  unnest()
+
+colnames(laureate_data) <- c("id", "firstname", "surname", "born", "death", "born_country", "born_country_code", "born_city", "death_country", "death_country_code", "death_city", "gender", "prize_year", "prize_category", "prize_share", "prize_motivation", "affiliations", "overallMotivation")
+
+create_ellipsis_table(laureate_data)
+```
+
+# 1. Which country has the most Nobel laureates who were born there but received their Nobel prize as a citizen of a different country?
+
+```{r}
+# laureates who were born in one country but received the prize as a citizen of another country
+
+born_and_citizenship <- laureate_data %>%
+  filter(born_country != death_country)
+
+#  laureates by their birth country
+born_and_citizenship_counts <- born_and_citizenship %>%
+  count(born_country)
+
+# country with the most laureates
+country_with_most_laureates <- born_and_citizenship_counts %>%
+  arrange(desc(n)) %>%
+  head(1)
+
+print(country_with_most_laureates)
+
+
+```
+# 2. How many Nobel prizes have been awarded in each category?
+
+```{r}
+
+prizes_per_category <- prize_data %>%
+  count(category)
+
+print(prizes_per_category)
+```
+
+# 3. Who were the first Nobel laureates?
+
+```{r}
+# Find the first Nobel laureates
+
+first_nobel_laureates <- laureate_data %>%
+  filter(prize_year == min(prize_year)) %>%
+  select(firstname, surname, prize_year, prize_category)
+
+print(first_nobel_laureates)
+
+```
+# 4. What is the average age of Nobel laureates when they receive their Nobel Prize?
+
+```{r}
+# Calculate the age of Nobel laureates when they received the prize
+laureate_data_age <- laureate_data %>%
+  mutate(birth_year = as.numeric(substr(born, 1, 4)),
+         prize_year = as.numeric(prize_year),
+         age_at_prize = prize_year - birth_year)
+
+# Calculate the average age
+average_age_at_prize <- mean(laureate_data_age$age_at_prize, na.rm = TRUE)
+
+cat('The average age of Nobel laureates when they receive their Nobel Prize is', average_age_at_prize)
+```
